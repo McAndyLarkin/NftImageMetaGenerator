@@ -72,7 +72,18 @@ class ImageCombinator:
                     self.selected_layers.append(member)
 
     def generateInvariants(self, export_template="export", exp="png", maximum=float("inf")):
-        combinations = self.getCombinations(int(maximum))
+        combinations = []
+        while(True):
+            _combinations = self.getCombinations(int(maximum))
+
+            print('Report:',
+                  '\n\tDifference: ', _combinations[1],
+                  '\n\tFound combinations: ', _combinations[2])
+            if _combinations[1] > .2 and _combinations[2] < .9:
+                print("-- Rebuild!")
+            else:
+                combinations = _combinations[0]
+                break
 
         for i in range(len(combinations)):
             if i == maximum:
@@ -101,64 +112,69 @@ class ImageCombinator:
         lost_combinations = []
         found_combinations = 0
 
-        if selected_groups is not None:
-            count_variations = self.countVariations(selected_groups)
-            limit_coef = limit / count_variations
-            print("Variations: ", count_variations)
+        assert selected_groups is not None
 
-            counter = MultyDimCounter([(0, len(group)) for group in selected_groups], False)
+        count_variations = self.countVariations(selected_groups)
+        limit_coef = limit / count_variations
+        print("Variations: ", count_variations)
 
-            step = 0
+        counter = MultyDimCounter([(0, len(group)) for group in selected_groups], False)
 
-            while step < count_variations:
-                for i in range(len(selected_groups)):
-                    if len(combinations) >= limit:
-                        print("Found combinations: ", found_combinations)
-                        return combinations
+        step = 0
 
-                    combination = []
-                    combination_shine = 0
+        while step < count_variations:
+            for i in range(len(selected_groups)):
+                if len(combinations) >= limit:
+                    return combinations, 0, found_combinations / count_variations
 
-                    for j in range(len(selected_groups)):
-                        layer = selected_groups[j][counter.get_counter()[j]]
+                combination = []
+                combination_shine = 0
 
-                        if limit_coef < 1 and self.isShine(layer):
-                            shine = self.getShine(layer)
-                            print(layer.name, " - shine - ", shine)
-                            combination_shine += shine
-                        else:
-                            print(layer.name, " - shine - 0")
-                            combination_shine += 0
-                        combination.append(layer.layer_id)
+                for j in range(len(selected_groups)):
+                    layer = selected_groups[j][counter.get_counter()[j]]
 
-                    print(combination)
-                    combination_shine /= len(combination)
-                    print("Combination shine - ", combination_shine)
-
-                    found_combinations += 1
-                    if limit_coef <= 1:
-                        if self.getRandomBool(1 - limit_coef) and self.getRandomBool(combination_shine):
-                            print("add right now")
-                            combinations.append((combination, combination_shine))
-                        else:
-                            print("add to reserve")
-                            lost_combinations.append((combination, combination_shine))
+                    if limit_coef < 1 and self.isShine(layer):
+                        shine = self.getShine(layer)
+                        print(layer.name, " - shine - ", shine)
+                        combination_shine += shine
                     else:
+                        print(layer.name, " - shine - 0")
+                        combination_shine += 0
+                    combination.append(layer.layer_id)
+
+                print(combination)
+                combination_shine /= len(combination)
+                print("Combination shine - ", combination_shine)
+
+                found_combinations += 1
+                if limit_coef <= 1:
+                    security_coeff = 5
+
+                    difference = min(limit - len(combinations), len(lost_combinations))
+                    if not self.getRandomBool(limit_coef * security_coeff) and self.getRandomBool(
+                            combination_shine) and not self.getRandomBool((difference / limit) * security_coeff):
                         print("add right now")
                         combinations.append((combination, combination_shine))
+                    else:
+                        print("add to reserve")
+                        lost_combinations.append((combination, combination_shine))
+                else:
+                    print("add right now")
+                    combinations.append((combination, combination_shine))
 
-                    counter.increase()
+                counter.increase()
 
-                    step += 1
+                step += 1
 
-            difference = min(limit - len(combinations), len(lost_combinations))
-            print("difference -- ", difference)
-            if difference > 0:
-                lost_combinations.sort(key=lambda combo: combo[1])
-                for _ in range(difference):
-                    combinations.append(lost_combinations.pop(0))
+        difference = min(limit - len(combinations), len(lost_combinations))
+        print("difference -- ", difference)
+        if difference > 0:
+            # lost_combinations.sort(key=lambda combo: combo[1])
+            random.shuffle(lost_combinations)
+            for _ in range(difference):
+                combinations.append(lost_combinations.pop(0))
         print("Found combinations: all")
-        return combinations
+        return combinations, difference / limit, 1
 
 
     def countVariations(self, groups):
@@ -183,7 +199,7 @@ class ImageCombinator:
         rand = random.randint(0, epsilon)
         priority_coef = max(0, min(aspect * epsilon, epsilon))
         print('priority_coef = ', priority_coef, rand)
-        return rand > priority_coef
+        return rand >= priority_coef
 
         # selected_groups = self.selected_groups
         # selected_layers = self.selected_layers
