@@ -1,5 +1,6 @@
 from psd_tools import PSDImage
 import os
+from counter import MultyDimCounter
 
 class ImageCombinator:
     def __init__(self, file_name):
@@ -98,19 +99,19 @@ class ImageCombinator:
             count_variations = self.countVariations(selected_groups)
             print("Variations: ", count_variations)
 
-            counter = [(0, len(group)) for group in selected_groups]
+            counter = MultyDimCounter([(0, len(group)) for group in selected_groups], False)
 
             k = 0
             step = 0
 
             while step < count_variations:
                 for i in range(len(selected_groups)):
-                    combinations.append([selected_groups[j][counter[j][0]].layer_id for j in range(len(selected_groups))])
+                    combination = [selected_groups[j][counter.get_counter()[j]].layer_id
+                                   for j in range(len(selected_groups))]
+                    print(combination)
+                    combinations.append(combination)
 
-                    if counter[i][0] == counter[i][1] - 1:
-                        counter[i] = 0, counter[i][1]
-                    else:
-                        counter[i] = counter[i][0] + 1, counter[i][1]
+                    counter.increase()
 
                     step += 1
         return combinations
