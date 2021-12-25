@@ -1,6 +1,8 @@
 from psd_tools import PSDImage
-import os
 from counter import MultyDimCounter
+import os
+import random
+
 
 class ImageCombinator:
     def __init__(self, file_name):
@@ -70,7 +72,8 @@ class ImageCombinator:
                     self.selected_layers.append(member)
 
     def generateInvariants(self, export_template="export", exp="png", maximum=float("inf")):
-        combinations = self.getCombinations()
+        combinations = self.getCombinations(int(maximum))
+
         for i in range(len(combinations)):
             if i == maximum:
                 break
@@ -82,38 +85,79 @@ class ImageCombinator:
                     if member.visible:
                         print("visible: ", member.name)
 
-            export_name = "/Users/maksim/Pictures/" + export_template + str(i) + "." + exp
+            export_name = "/Users/maksim/Pictures/" + export_template + str(i) \
+                          + '_#' + str(int(combo[1] * 100)) + "." + exp
             print("export:" + export_name)
             path = "/".join(export_name.split('/')[:-1])
             if not os.path.exists(path):
                 os.mkdir(path)
             self.export(export_name)
 
-    def getCombinations(self):
+    def getCombinations(self, limit: int):
         selected_groups = self.selected_groups
         selected_layers = self.selected_layers
 
         combinations = []
+        lost_combinations = []
+        found_combinations = 0
 
         if selected_groups is not None:
             count_variations = self.countVariations(selected_groups)
+            limit_coef = limit / count_variations
             print("Variations: ", count_variations)
 
             counter = MultyDimCounter([(0, len(group)) for group in selected_groups], False)
 
-            k = 0
             step = 0
 
             while step < count_variations:
                 for i in range(len(selected_groups)):
-                    combination = [selected_groups[j][counter.get_counter()[j]].layer_id
-                                   for j in range(len(selected_groups))]
+                    if len(combinations) >= limit:
+                        print("Found combinations: ", found_combinations)
+                        return combinations
+
+                    combination = []
+                    combination_shine = 0
+
+                    for j in range(len(selected_groups)):
+                        layer = selected_groups[j][counter.get_counter()[j]]
+
+                        if limit_coef < 1 and self.isShine(layer):
+                            shine = self.getShine(layer)
+                            print(layer.name, " - shine - ", shine)
+                            combination_shine += shine
+                        else:
+                            print(layer.name, " - shine - 0")
+                            combination_shine += 0
+                        combination.append(layer.layer_id)
+
                     print(combination)
-                    combinations.append(combination)
+                    combination_shine /= len(combination)
+                    print("Combination shine - ", combination_shine)
+
+                    found_combinations += 1
+                    if limit_coef <= 1:
+                        if self.getRandomBool(1 - limit_coef) and self.getRandomBool(combination_shine):
+                            print("add right now")
+                            combinations.append((combination, combination_shine))
+                        else:
+                            print("add to reserve")
+                            lost_combinations.append((combination, combination_shine))
+                    else:
+                        print("add right now")
+                        combinations.append((combination, combination_shine))
 
                     counter.increase()
 
                     step += 1
+
+            difference = min(limit - len(combinations), len(lost_combinations))
+            print("difference -- ", difference)
+            if difference > 0:
+                lost_combinations.sort(key=lambda combo: combo[1])
+                for _ in range(difference):
+                    combinations.append(lost_combinations.pop(0))
+        print("Found combinations: all")
         return combinations
 
 
@@ -123,6 +167,23 @@ class ImageCombinator:
             count *= len(group)
 
         return count
+
+    """
+        Returns value that shows, how cool this layer, where 1 - very cool, 0 - very suck
+    """
+    def getShine(self, layer):
+        return int(layer.name.split('#')[-1]) / 100
+
+    def isShine(self, layer):
+        name_array = layer.name.split('#')
+        return len(name_array) > 1 and name_array[-1].isnumeric()
+
+    def getRandomBool(self, aspect):
+        epsilon = 10000
+        rand = random.randint(0, epsilon)
+        priority_coef = max(0, min(aspect * epsilon, epsilon))
+        print('priority_coef = ', priority_coef, rand)
+        return rand > priority_coef
 
         # selected_groups = self.selected_groups
         # selected_layers = self.selected_layers
