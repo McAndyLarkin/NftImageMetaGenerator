@@ -106,9 +106,10 @@ class ImageCombinator:
                         )
             N = i+1
 
-            shine = int(combo[1] * 100)
+            real_shine = int(combo[1]['real'] * 100)
+            absolute_shine = int(combo[1]['absolute'] * 100)
 
-            export_name = image_template + str(N) + '#' + str(shine) + "." + exp
+            export_name = image_template + str(N) + '#' + str(absolute_shine) + "." + exp
             print("export:" + export_name)
             img_path = "/".join(export_name.split('/')[:-1]) + '/'
             meta_path = "/".join(meta_template.split('/')[:-1]) + '/'
@@ -123,8 +124,14 @@ class ImageCombinator:
 
             metadata.append(
                 {
-                    'trait_type': "shine",
-                    'value': shine
+                    'trait_type': "real_shine",
+                    'value': real_shine
+                }
+            )
+            metadata.append(
+                {
+                    'trait_type': "absolute_shine",
+                    'value': absolute_shine
                 }
             )
 
@@ -168,6 +175,23 @@ class ImageCombinator:
 
         step = 0
 
+        absolute_groups_max_and_min_shine = {}
+
+        MAX_SHINE = 100
+
+        for group in selected_groups:
+            current_group_max_shine = 0
+            current_group_min_shine = MAX_SHINE
+            for layer in group:
+                if self.isShine(layer):
+                    current_group_max_shine = max(current_group_max_shine, self.getShine(layer))
+                    current_group_min_shine = min(current_group_min_shine, self.getShine(layer))
+            absolute_groups_max_and_min_shine[group.layer_id] = {
+                'max': current_group_max_shine,
+                'min': current_group_min_shine
+            }
+        print(absolute_groups_max_and_min_shine)
+
         while step < count_variations:
             for i in range(len(selected_groups)):
                 if len(combinations) >= limit:
@@ -175,21 +199,33 @@ class ImageCombinator:
 
                 combination = []
                 combination_shine = 0
+                combination_shine = {
+                    'absolute': 0,
+                    'real': 0
+                }
 
                 for j in range(len(selected_groups)):
-                    layer = selected_groups[j][counter.get_counter()[j]]
+                    group = selected_groups[j]
+                    layer = group[counter.get_counter()[j]]
 
                     if limit_coef < 1 and self.isShine(layer):
-                        shine = self.getShine(layer)
+                        absolute_shine = self.getShine(layer)
+                        absolute_min_shine = absolute_groups_max_and_min_shine[group.layer_id]['min']
+                        absolute_max_shine = absolute_groups_max_and_min_shine[group.layer_id]['max']
+
+                        max_shine = absolute_max_shine - absolute_min_shine
+                        shine = absolute_shine - absolute_min_shine
+                        shine = shine / max_shine
                         print(layer.name, " - shine - ", shine)
-                        combination_shine += shine
+                        combination_shine['real'] += shine
+                        combination_shine['absolute'] += absolute_shine
                     else:
                         print(layer.name, " - shine - 0")
-                        combination_shine += 0
                     combination.append(layer.layer_id)
 
                 print(combination)
-                combination_shine /= len(combination)
+                combination_shine['real'] /= len(combination)
+                combination_shine['absolute'] /= len(combination)
                 print("Combination shine - ", combination_shine)
 
                 found_combinations += 1
@@ -198,7 +234,7 @@ class ImageCombinator:
 
                     difference = min(limit - len(combinations), len(lost_combinations))
                     if not self.getRandomBool(limit_coef * security_coeff) and self.getRandomBool(
-                            combination_shine) and not self.getRandomBool((difference / limit) * security_coeff):
+                            combination_shine['real']) and not self.getRandomBool((difference / limit) * security_coeff):
                         print("add right now")
                         combinations.append((combination, combination_shine))
                     else:
