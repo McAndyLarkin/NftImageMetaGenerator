@@ -2,6 +2,7 @@ from psd_tools import PSDImage
 from counter import MultyDimCounter
 import os
 import random
+import json
 
 
 class ImageCombinator:
@@ -71,38 +72,83 @@ class ImageCombinator:
                     print(member.name, "layer")
                     self.selected_layers.append(member)
 
-    def generateInvariants(self, export_template="export", exp="png", maximum=float("inf")):
-        combinations = []
+    def generateInvariants(self, image_template="export", meta_template="meta", exp="png", maximum=float("inf")):
         while(True):
-            _combinations = self.getCombinations(int(maximum))
+            combinations_with_report = self.getCombinations(int(maximum))
 
             print('Report:',
-                  '\n\tDifference: ', _combinations[1],
-                  '\n\tFound combinations: ', _combinations[2])
-            if _combinations[1] > .2 and _combinations[2] < .9:
+                  '\n\tDifference: ', combinations_with_report[1],
+                  '\n\tFound combinations: ', combinations_with_report[2])
+            if combinations_with_report[1] > .2 and combinations_with_report[2] < .9:
                 print("-- Rebuild!")
             else:
-                combinations = _combinations[0]
+                combinations = combinations_with_report[0]
                 break
 
         for i in range(len(combinations)):
             if i == maximum:
                 break
 
+            metadata = []
+
             combo = combinations[i]
+            print('combination: ', combo)
             for member in self.psd.descendants():
                 if not member.is_group():
-                    member.visible = combo.__contains__(member.layer_id)
+                    member.visible = combo[0].__contains__(member.layer_id)
                     if member.visible:
                         print("visible: ", member.name)
+                        metadata.append(
+                            {
+                                'trait_type': member.parent.name,
+                                'value': member.name
+                            }
+                        )
+            N = i+1
 
-            export_name = "/Users/maksim/Pictures/" + export_template + str(i) \
-                          + '_#' + str(int(combo[1] * 100)) + "." + exp
+            shine = int(combo[1] * 100)
+
+            export_name = image_template + str(N) + '#' + str(shine) + "." + exp
             print("export:" + export_name)
-            path = "/".join(export_name.split('/')[:-1])
-            if not os.path.exists(path):
-                os.mkdir(path)
+            img_path = "/".join(export_name.split('/')[:-1]) + '/'
+            meta_path = "/".join(meta_template.split('/')[:-1]) + '/'
+            if not os.path.exists(img_path):
+                os.mkdir(img_path)
+            if not os.path.exists(meta_path):
+                os.mkdir(meta_path)
+            print('metadata:', metadata)
+            print("img_path = ", img_path)
+            print("meta_path = ", meta_path)
             self.export(export_name)
+
+            metadata.append(
+                {
+                    'trait_type': "shine",
+                    'value': shine
+                }
+            )
+
+            metadata = {
+                "name": "Snail №" + str(N),
+                "description": "Snails collection",
+                "seller_fee_basis_points": 1000,#1000 - 10%
+                "external_url": 1000,#https - project site adress
+                "edition": N,
+                "collection": {
+                    "name": "Snail",
+                    "family": "Snails Party"
+                },
+                "image": export_name,
+                "attributes": metadata,
+                "properties": {
+                    "creators": {
+                        "address": "",  #cryptowallet
+                        "share": 100
+                    }
+                },
+                "compiler": "MCAL"
+            }
+            self.save_meta(metadata, meta_template + str(N))
 
     def getCombinations(self, limit: int):
         selected_groups = self.selected_groups
@@ -200,6 +246,11 @@ class ImageCombinator:
         priority_coef = max(0, min(aspect * epsilon, epsilon))
         print('priority_coef = ', priority_coef, rand)
         return rand >= priority_coef
+
+    def save_meta(self, metadata, name):
+        with open(name + ".json", "w") as write_file:
+            json.dump(metadata, write_file)
+
 
         # selected_groups = self.selected_groups
         # selected_layers = self.selected_layers
