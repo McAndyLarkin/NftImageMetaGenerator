@@ -4,7 +4,7 @@ class MultyDimCounter:
         Creates Multi dimension counter from pairs array.
         Dict (or pairs array) has to have pairs of start and finish values for each dimension.
     """
-    def __init__(self, bounds: list, include_finish: bool):
+    def __init__(self, bounds: list, include_finish: bool = True):
         self.counter = [(dim[0], dim[0], dim[1]) for dim in bounds]
         self.include_finish = include_finish
 
