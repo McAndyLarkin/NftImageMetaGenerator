@@ -2,7 +2,6 @@ import json
 import random
 
 from image_combinations import ImageCombinator
-from psd_creation import getProjectFrom
 
 from gui.window import launchWindow
 

@@ -35,7 +35,7 @@ class ImageCombinator:
         self.psd = PSDImage.open(self.file)
 
     def export(self, export_name):
-        self.psd.composite(force=True).save(export_name)
+        self.psd.compose(force=True).save(export_name)
 
     def getAllLayers(self):
         layers = []
