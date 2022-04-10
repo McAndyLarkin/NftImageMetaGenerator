@@ -4,6 +4,7 @@ from tkinter import filedialog
 
 from gui.repository import *
 from image_combinations import ImageCombinator
+from threading import Thread
 
 
 class Screen:
@@ -28,15 +29,20 @@ class Screen:
 
     @staticmethod
     def updateMessage(message):
-        print("Message: " + message)
+        pass
 
     onScreenModeUpdated = []
 
     @staticmethod
     def updateScreenMode(mode):
+        print("updateScreenMode", mode)
         for i in Screen.onScreenModeUpdated:
             i(mode)
 
+
+    @staticmethod
+    def hide_or_show_launch_buts(show: bool):
+        pass
 
 dark_back = "#262626"
 light_back = "#dbdbdb"
@@ -157,7 +163,6 @@ def createMetaRaw(root, name, command, color_mode="white|black", default=None, l
     field.config(font=("Courier", 12), textvariable=sv)
 
     if default is not None:
-        print(name, default)
         field.insert(0, default)
 
     return frame
@@ -237,7 +242,19 @@ def initGeneralFragment(root):
     calc_gen__btn.place(height=50, relwidth=.3, relx=.01, y=field_relheight * 5)
 
     calc_btn = Button(frame, text="Calculate", highlightbackground=dark_back, command=calculate_btn, fg=yellow)
+
     calc_btn.place(height=50, relwidth=.2, relx=.01, y=field_relheight * 7)
+
+    def hide_or_show(show: bool):
+        if show:
+            calc_gen__btn.config(state=NORMAL)
+            if Screen.tab_mode == Screen.Modes.new_gen_tab:
+                calc_btn.config(state=NORMAL)
+        else:
+            calc_gen__btn.config(state=DISABLED)
+            calc_btn.config(state=DISABLED)
+
+    Screen.hide_or_show_launch_buts = hide_or_show
 
     def f_update(screenMode):
         Screen.tab_mode = screenMode
@@ -264,7 +281,7 @@ def initGeneralFragment(root):
 
 
 def check_for_calculating():
-    print("check_for_calculating")
+    print("check_for_calculating ..")
     missed_fields = []
 
     if Screen.tab_mode == Screen.Modes.cloud_tab:
@@ -309,7 +326,7 @@ def check_for_calculating():
 
 
 def check_for_generating():
-    print("check_for_generating", Screen.tab_mode)
+    print("check_for_generating ..", Screen.tab_mode)
 
     if Screen.tab_mode == Screen.Modes.new_gen_tab:
         return {
@@ -357,22 +374,27 @@ def check_for_generating():
         }
 
 
-def calculate():
-    Screen.updateMessage("Calculating ...")
+def calculate(args):
+    update = args
+    if not os.path.exists(Screen.source):
+        update("Calculating is Impossible \n There is not source")
+        return
+    update("Calculating ...")
+
     psd_file_name = Screen.source
-    print("calculate -- ", psd_file_name)
+    print("Calculating .. ", psd_file_name)
     combinator = ImageCombinator(psd_file_name)
 
     top = combinator.getTopGroups()
 
-    print(*top, sep='\n', end="\n\n")
+    print("Groups:", *top, sep='\n', end="\n\n")
 
-    print("Max , layers -- ", *combinator.getAllLayers(), sep="\n", end="\n\n")
+    print("All layers -- ", *combinator.getAllLayers(), sep="\n", end="\n\n")
 
     combinator.setCombinable([i[0] for i in top])
 
-    combinations = combinator.getCombinations(Screen.count)
-    print("Result of getCombinations -- size", len(combinations[0]), combinations[1], combinations[2])
+    combinations = combinator.getCombinations(Screen.count, update)
+    print("Result of calculating:", len(combinations[0]), combinations[1], combinations[2])
 
     combinations = sorted(combinations[0], key=lambda _: random.random()), combinations[1], combinations[2]
     file_name = combinator.save_cloud(combinations[0], configure={
@@ -390,26 +412,38 @@ def calculate():
 
 
 def calculate_btn():
-    print("Calculate")
+    print("check_for_calculating ..")
     checking = check_for_calculating()
     if checking['result']:
-        calculate()
-    elif checking['Err'] == "MISSED_FIELDS":
-        print("Missed", *checking['fields'])
-        Screen.updateMessage("You have not filled \nnecessary fields: \n{}".format(checking['fields']))
-    elif checking['Err'] == "WRONG_MODE":
-        Screen.updateMessage("Select 'New Gen' tab to configure new generation")
+        print("Success!")
+        Screen.updateMessage("Calculating ...")
+
+        def target():
+            calculate(Screen.updateMessage)
+            Screen.hide_or_show_launch_buts(True)
+        th = Thread(target=target)
+        th.start()
     else:
-        Screen.updateMessage("Unknown error.\nClose app and try again")
+        print("Failed(")
+        if checking['Err'] == "MISSED_FIELDS":
+            print("Missed", *checking['fields'])
+            Screen.updateMessage("You have not filled \nnecessary fields: \n{}".format(checking['fields']))
+        if checking['Err'] == "WRONG_MODE":
+            print("WRONG_MODE")
+            Screen.updateMessage("Select 'New Gen' tab to configure new generation")
+        else:
+            print("Unknown calculating error")
+            Screen.updateMessage("Unknown error.\nClose app and try again")
 
 
 def calculate_and_generate_btn():
-    print("calculate_and_generate")
+    print("calculate_and_generate .. ")
     checking = None
 
     if Screen.tab_mode == Screen.Modes.new_gen_tab:
         checking = check_for_calculating()
         if checking['result']:
+            print("Success!")
             checking = check_for_generating()
 
     elif Screen.tab_mode == Screen.Modes.cloud_tab:
@@ -419,12 +453,25 @@ def calculate_and_generate_btn():
         Screen.updateMessage("Unknown error.\nClose app and try again")
 
     if checking['result']:
-        combinations = None
-        source = None
+        print("Success!")
         if Screen.tab_mode == Screen.Modes.new_gen_tab:
-            print("Calculating..")
-            combinations = calculate()
-            source = Screen.source
+            class MyThread(Thread):
+                def __init__(self, parent=None):
+                    self.parent = parent
+                    super(MyThread, self).__init__()
+                def run(self):
+                    Screen.hide_or_show_launch_buts(False)
+                    combinations = calculate(Screen.updateMessage)
+                    if combinations is None:
+                        print("Failed to start generating: Combinations")
+                        Screen.updateMessage("Generating is impossible.\nThere is not combinations")
+                    else:
+                        generate(combinations, Screen.source, Screen.updateMessage)
+                    Screen.hide_or_show_launch_buts(True)
+
+            thread = MyThread()
+            thread.start()
+
         elif Screen.tab_mode == Screen.Modes.cloud_tab:
             print("Cloud loading..")
             Screen.updateMessage("Cloud loading ...")
@@ -433,27 +480,42 @@ def calculate_and_generate_btn():
                 source = source["Source"]
             combinations = get_cloud_combinations(Screen.cloud_path, print)
 
-        if source is None:
-            print("Failed to start generating: Source")
-            Screen.updateMessage("Generating is impossible.\nThere is not source file")
-        elif combinations is None:
-            print("Failed to start generating: Combinations")
-            Screen.updateMessage("Generating is impossible.\nThere is not combinations")
-        else:
-            print("Generating..")
-            generate(combinations, source)
+            if source is None:
+                print("Failed to start generating: Source")
+                Screen.updateMessage("Generating is impossible.\nThere is not source file")
+            elif combinations is None:
+                print("Failed to start generating: Combinations")
+                Screen.updateMessage("Generating is impossible.\nThere is not combinations")
+            else:
+                def target():
+                    generate(combinations, source, Screen.updateMessage)
+                    Screen.hide_or_show_launch_buts(True)
+                th = Thread(target=target)
+                Screen.hide_or_show_launch_buts(False)
+                th.start()
 
-    elif checking['Err'] == "MISSED_FIELDS":
-        print("Missed", *checking['fields'])
-        Screen.updateMessage("You have not filled \nnecessary fields: \n{}".format(checking['fields']))
-    elif checking['Err'] == "WRONG_MODE":
-        Screen.updateMessage("Unknown mode")
     else:
-        Screen.updateMessage("Unknown error.\nClose app and try again")
+        print("Failed(")
+        if checking['Err'] == "MISSED_FIELDS":
+            print("Missed", *checking['fields'])
+            Screen.updateMessage("You have not filled \nnecessary fields: \n{}".format(checking['fields']))
+        if checking['Err'] == "WRONG_MODE":
+            print("WRONG_MODE")
+            Screen.updateMessage("Unknown mode")
+        else:
+            print("Unknown error")
+            Screen.updateMessage("Unknown error.\nClose app and try again")
 
 
-def generate(combinations, source):
-    Screen.updateMessage("Generating...")
+def generate(combinations, source, updateMsg):
+    if source is None or not os.path.exists(source):
+        updateMsg("Generating is unavailable \nbecause there is not source")
+        return
+    elif combinations is None:
+        updateMsg("Generating is unavailable \nbecause there is not combinations")
+        return
+
+    updateMsg("Generating...")
     combinations, restored_part, part_of_all = combinations
     print("Generating: combos.len -- {}, restored_part -- {}, part_of_all -- {}"
           .format(combinations, restored_part, part_of_all))
@@ -461,22 +523,23 @@ def generate(combinations, source):
     export_name = get_project_file_name(content={
         "Source": source,
         "Generation": Screen.name,
-        "Count": Screen.count
+        "Count": len(combinations)
     })
     path = Screen.destiny + '/' + export_name + '/'
-    print("generate -- path -- ", path)
+    print("generating destiny path -- ", path)
 
     combinator = ImageCombinator(source)
     print(Screen.meta_entities)
     combinator.generateImages(combinations=combinations,image_template=path + 'images/' + export_name + '#',
                                   meta_template=path + 'metadata/' + export_name + "_meta_", exp="png",
-                              maximum=Screen.count, meta=Screen.meta_entities)
-    Screen.updateMessage("Generating has been finished:\n"
+                              maximum=len(combinations), meta=Screen.meta_entities, updateMsg=updateMsg)
+    updateMsg("Generating has been finished:\n"
                          "You can find your generated images and meta in \n{}"
                          .format(path))
 
 
 def initCloudTable(root):
+    print("cloud_path", Screen.cloud_path)
     h = Scrollbar(root, orient='horizontal')
     h.pack(side=BOTTOM, fill=X)
 
@@ -489,8 +552,6 @@ def initCloudTable(root):
     content.place(x=.01, y=0.01, relwidth=0.98, relheight=0.98)
 
     lines = get_cloud_content(Screen.cloud_path, error_handling=show_message)
-    print("cloud_path", Screen.cloud_path)
-    print("lns", lines)
     t2 = '  '
     t4 = '    '
     if lines is not None:
@@ -581,8 +642,6 @@ def initTabsFragment(root, tabs):
     frame.place(height=20, relwidth=1)
 
     for tab_i in range(len(tabs)):
-        print(tabs)
-        print(tab_i)
         Screen.Modes.tabs.append(createTab(frame, Screen.Modes.list()[tab_i], tab_i=tab_i))
 
 
@@ -599,10 +658,8 @@ def createTab(root, name, tab_i):
 
 def onTabSelectedUnselected(tab):
     if tab["text"] == Screen.tab_mode:
-        print(tab["text"], "en")
         tab.config(fg=green)
     else:
-        print(tab["text"], "dis")
         tab.config(fg=dark_back)
 
 
@@ -625,7 +682,6 @@ def initOptionFragment(root):
             place_mode_screen(newGen)
 
         for _tab in Screen.Modes.tabs:
-            print(_tab["text"])
             onTabSelectedUnselected(_tab)
 
     Screen.onScreenModeUpdated.append(f_update)
@@ -658,6 +714,7 @@ def apply_config(config):
 
 
 def show_message(msg):
+    Screen.updateMessage(msg)
     print(msg)
 
 def initWindow():

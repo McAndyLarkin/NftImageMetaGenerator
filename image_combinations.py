@@ -77,21 +77,20 @@ class ImageCombinator:
         for member in self.psd:
             if ids_list.__contains__(member.layer_id):
                 if member.is_group():
-                    print(member.name, "group", *member.descendants())
                     self.selected_groups.append(member)
                 else:
-                    print(member.name, "layer")
                     self.selected_layers.append(member)
         self.fill_id_to_name()
 
-    def generateImages(self, combinations, image_template, meta_template, exp, maximum, meta={}):
+    def generateImages(self, combinations, image_template, meta_template, exp, maximum, updateMsg, meta={}):
+        print("generateImages for: ", combinations)
         for i in range(len(combinations)):
+            updateMsg("Generating .. {}%".format(round((i / len(combinations)) * 100, 1)))
             if i == maximum:
                 break
 
             metadata = []
 
-            print(combinations)
             combo = combinations[i]
             print('combination: ', combo)
             for member in self.psd.descendants():
@@ -115,9 +114,9 @@ class ImageCombinator:
             img_path = "/".join(export_name.split('/')[:-1]) + '/'
             meta_path = "/".join(meta_template.split('/')[:-1]) + '/'
             if not os.path.exists(img_path):
-                os.mkdir(img_path)
+                os.makedirs(img_path)
             if not os.path.exists(meta_path):
-                os.mkdir(meta_path)
+                os.makedirs(meta_path)
             # print('metadata:', metadata)
             # print("img_path = ", img_path)
             # print("meta_path = ", meta_path)
@@ -168,7 +167,10 @@ class ImageCombinator:
                 "attributes": metadata,
             }
             if meta.keys().__contains__("name"):
-                metadata["name"] = meta.pop("name") + " #" + str(N)
+                print("There is Name")
+                metadata["name"] = meta["name"] + " #" + str(N)
+            else:
+                print("There is not Name")
 
             if meta.keys().__contains__("collection/name"):
                 if not metadata.keys().__contains__("collection"):
@@ -229,7 +231,7 @@ class ImageCombinator:
 
         self.generateImages(combinations,image_template, meta_template, exp, maximum, start, end)
 
-    def getCombinations(self, limit: int):
+    def getCombinations(self, limit: int, updateProgressMsg):
         selected_groups = self.selected_groups
         selected_layers = self.selected_layers
 
@@ -241,7 +243,7 @@ class ImageCombinator:
 
         count_variations = self.countVariations(selected_groups)
         limit_coef = limit / count_variations
-        print("Variations: ", count_variations, '--------------------------------------------')
+        print("Variations: ", count_variations)
 
         counter = MultyDimCounter([(0, len(group)) for group in selected_groups], False)
 
@@ -262,7 +264,6 @@ class ImageCombinator:
                 'max': current_group_max_shine,
                 'min': current_group_min_shine
             }
-        print(absolute_groups_max_and_min_shine)
 
         saved = MultyDimCounter([(0, 10000)], False)
 
@@ -323,6 +324,7 @@ class ImageCombinator:
                     combinations.append((combination, combination_shine))
                 saved.increase()
                 if saved.get_counter()[0] == 1:
+                    updateProgressMsg("Calculating .. {}%".format(round((found_combinations / count_variations) * 100, 1)))
                     print("I want - ", f"{(limit / count_variations):.{6}f}", "I have - ", f"{(len(combinations) / found_combinations):.{6}f}", "progress: ",
                           f"{((found_combinations / count_variations) * 100):.{3}f}", '%')
 
@@ -330,10 +332,10 @@ class ImageCombinator:
 
                 step += 1
 
-        print("Combos: ", len(combinations))
-        print("lost_combinations", len(lost_combinations))
+        print("Combinations generated: ", len(combinations))
+        print("Lost combinations", len(lost_combinations))
         difference = min(limit - len(combinations), len(lost_combinations))
-        print("difference -- ", difference)
+        print("Will be restored -- ", difference)
 
         if difference > 0:
             lost_combinations = sorted(lost_combinations, key=lambda _: random.random())
@@ -357,7 +359,6 @@ class ImageCombinator:
             for layer in group:
                 invariants[group.name][layer.name] = 0
 
-        print("Combos:", combinations)
         for combo in combinations:
             for layer_id in combo[0]:
                 member_data = self.layer_id_to_name_and_group_id[layer_id]
