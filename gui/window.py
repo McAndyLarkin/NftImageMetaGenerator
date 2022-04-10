@@ -270,7 +270,7 @@ def initGeneralFragment(root):
     Screen.onScreenModeUpdated.append(f_update)
 
     mode_description = Label(frame, text="Check data entered\nbefore start generating", anchor="w", justify=LEFT,
-                             background=dark_back)
+                             background=dark_back, foreground=light_back)
 
     def f_message(message):
         mode_description["text"] = message
