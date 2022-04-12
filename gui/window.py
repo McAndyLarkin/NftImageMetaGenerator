@@ -11,10 +11,11 @@ class Screen:
     class Modes:
         cloud_tab = "Cloud"
         new_gen_tab = "New gen"
+        update_meta = "Update meta"
 
         @staticmethod
         def list():
-            return [Screen.Modes.new_gen_tab, Screen.Modes.cloud_tab]
+            return [Screen.Modes.new_gen_tab, Screen.Modes.cloud_tab, Screen.Modes.update_meta]
 
         tabs = []
 
@@ -24,6 +25,10 @@ class Screen:
     source: str = None
     count: int = None
     cloud_path: str = None
+
+    meta_file: str = None
+    meta_directory: str = None
+    meta_target: str = "File|Dir"
 
     tab_mode: str = None
 
@@ -171,6 +176,7 @@ def createMetaRaw(root, name, command, color_mode="white|black", default=None, l
 def getMetaFields():
     return ["name",
             "description",
+            "ipfs(image)",
             "seller_fee_basis_points",
             "external_url",
             "collection/name",
@@ -238,7 +244,7 @@ def initGeneralFragment(root):
     destiny_field.place(height=field_relheight, relwidth=.98, relx=.01, y=field_relheight * 2)
 
     calc_gen__btn = Button(frame, text="Calculate&Generate", highlightbackground=dark_back,
-                           command=calculate_and_generate_btn, fg=green)
+                           command=calc_or_gen_or_update_btn, fg=green)
     calc_gen__btn.place(height=50, relwidth=.3, relx=.01, y=field_relheight * 5)
 
     calc_btn = Button(frame, text="Calculate", highlightbackground=dark_back, command=calculate_btn, fg=yellow)
@@ -260,10 +266,23 @@ def initGeneralFragment(root):
         Screen.tab_mode = screenMode
         if screenMode == Screen.Modes.cloud_tab:
             calc_gen__btn["text"] = "Generate"
+            calc_gen__btn.config(state=NORMAL)
             calc_btn.config(state=DISABLED)
+            name_field.place(height=field_relheight, relwidth=.98, relx=.01, y=field_relheight)
+            destiny_field.place(height=field_relheight, relwidth=.98, relx=.01, y=field_relheight * 2)
         elif screenMode == Screen.Modes.new_gen_tab:
             calc_gen__btn["text"] = "Calculate&Generate"
+            calc_gen__btn.config(state=NORMAL)
             calc_btn.config(state=NORMAL)
+            name_field.place(height=field_relheight, relwidth=.98, relx=.01, y=field_relheight)
+            destiny_field.place(height=field_relheight, relwidth=.98, relx=.01, y=field_relheight * 2)
+        elif screenMode == Screen.Modes.update_meta:
+            calc_gen__btn["text"] = "Update Metadata"
+            calc_gen__btn.config(state=NORMAL)
+            calc_btn.config(state=DISABLED)
+            name_field.place_forget()
+            destiny_field.place_forget()
+
 
     f_update(Screen.tab_mode)
 
@@ -284,7 +303,7 @@ def check_for_calculating():
     print("check_for_calculating ..")
     missed_fields = []
 
-    if Screen.tab_mode == Screen.Modes.cloud_tab:
+    if Screen.tab_mode == Screen.Modes.cloud_tab or Screen.tab_mode == Screen.Modes.update_meta:
         return {
             "result": False,
             "Err": "WRONG_MODE"
@@ -412,6 +431,11 @@ def calculate(args):
 
 
 def calculate_btn():
+    if Screen.tab_mode != Screen.Modes.new_gen_tab:
+        return {
+            "result": False,
+            "Err": "WRONG_MODE"
+        }
     print("check_for_calculating ..")
     checking = check_for_calculating()
     if checking['result']:
@@ -436,9 +460,18 @@ def calculate_btn():
             Screen.updateMessage("Unknown error.\nClose app and try again")
 
 
-def calculate_and_generate_btn():
+def update_metadate():
+    print("mEta", Screen.meta_file)
+    update_meta_file(Screen.meta_entities, Screen.meta_file, Screen.updateMessage)
+
+
+def calc_or_gen_or_update_btn():
     print("calculate_and_generate .. ")
     checking = None
+
+    if Screen.tab_mode == Screen.Modes.update_meta:
+        update_metadate()
+        return
 
     if Screen.tab_mode == Screen.Modes.new_gen_tab:
         checking = check_for_calculating()
@@ -514,6 +547,9 @@ def generate(combinations, source, updateMsg):
     elif combinations is None:
         updateMsg("Generating is unavailable \nbecause there is not combinations")
         return
+    elif Screen.name is None:
+        updateMsg("Generating is unavailable \nbecause there is not name")
+        return
 
     updateMsg("Generating...")
     combinations, restored_part, part_of_all = combinations
@@ -530,8 +566,8 @@ def generate(combinations, source, updateMsg):
 
     combinator = ImageCombinator(source)
     print(Screen.meta_entities)
-    combinator.generateImages(combinations=combinations,image_template=path + 'images/' + export_name + '#',
-                                  meta_template=path + 'metadata/' + export_name + "_meta_", exp="png",
+    combinator.generateImages(combinations=combinations, image_template=Screen.name + '#',
+                                  path=path, exp="png",
                               maximum=len(combinations), meta=Screen.meta_entities, updateMsg=updateMsg)
     updateMsg("Generating has been finished:\n"
                          "You can find your generated images and meta in \n{}"
@@ -605,6 +641,67 @@ def initCloudFragment(root):
 
     return frame
 
+def initUpdateMetaFrgment(root):
+    frame = Frame(root, bg=dark_back)
+    place_mode_screen(frame)
+
+    title = Label(frame, text="Update metadata", bg=dark_back, fg="white")
+    title.place(relx=0, y=5, height=20, relwidth=1)
+    title.config(font=("Courier", 18))
+
+    title2 = Label(frame, text="Select 1 file or directory with files", bg=dark_back, fg="white")
+    title2.place(relx=0, y=25, height=20, relwidth=1)
+    title2.config(font=("Courier", 14))
+
+    def select_file(path):
+        if path is not None and not len(path) == 0:
+            Screen.meta_file = path
+            return True
+        return  False
+
+    def select_directory(path):
+        if path is not None and not len(path) == 0:
+            Screen.meta_directory = path
+            return True
+        return  False
+
+    open_f = createPathRaw(frame, "Meta file", command=select_file, search="File",
+                           filetypes=[("JSON files", "*.json")], color_mode="black", default=Screen.meta_file)
+
+    open_d = createPathRaw(frame, "Meta folder", command=select_directory, search="Dir",
+                           filetypes=None, color_mode="black", default=Screen.meta_directory)
+
+    var1 = StringVar()
+    var1.set("File")
+
+    def show():
+        Screen.meta_target = var1.get()
+        if var1.get() == "Dir":
+            open_f.place_forget()
+            open_d.place(y=90, relx=0.01, height=20, relwidth=.98)
+        elif var1.get() == "File":
+            open_d.place_forget()
+            open_f.place(y=90, relx=0.01, height=20, relwidth=.98)
+        else:
+            open_d.place_forget()
+            open_f.place_forget()
+
+    c1 = Radiobutton(frame, text="File",
+                     variable=var1,
+                     value="File",
+                     command=show)
+
+    c2 = Radiobutton(frame, text="Dir",
+                     variable=var1,
+                     value="Dir",
+                     command=show)
+
+    c1.place(y=55, relx=0.01, height=20, width=50)
+    c2.place(y=55, relx=0.16, height=20, width=50)
+
+    show()
+    return frame
+
 
 def initNewGenFragment(root):
     frame = Frame(root, bg=dark_back)
@@ -669,6 +766,7 @@ def initOptionFragment(root):
 
     cloud: Frame = initCloudFragment(frame)
     newGen: Frame = initNewGenFragment(frame)
+    updateMeta: Frame = initUpdateMetaFrgment(frame)
 
     Screen.tab_mode = Screen.Modes.new_gen_tab
 
@@ -676,13 +774,21 @@ def initOptionFragment(root):
         Screen.tab_mode = screenMode
         if screenMode == Screen.Modes.cloud_tab:
             newGen.place_forget()
+            updateMeta.place_forget()
             place_mode_screen(cloud)
         elif screenMode == Screen.Modes.new_gen_tab:
             cloud.place_forget()
+            updateMeta.place_forget()
             place_mode_screen(newGen)
+        elif screenMode == Screen.Modes.update_meta:
+            newGen.place_forget()
+            cloud.place_forget()
+            place_mode_screen(updateMeta)
 
         for _tab in Screen.Modes.tabs:
             onTabSelectedUnselected(_tab)
+
+    f_update(Screen.tab_mode)
 
     Screen.onScreenModeUpdated.append(f_update)
 
@@ -701,6 +807,8 @@ def build_config():
             "source": Screen.source,
             "count": Screen.count,
             "cloud_path": Screen.cloud_path,
+            "meta_file": Screen.meta_file,
+            "meta_dir": Screen.meta_directory
         }
 
 
@@ -711,6 +819,8 @@ def apply_config(config):
     Screen.source = config["source"]
     Screen.count = config["count"]
     Screen.cloud_path = config["cloud_path"]
+    Screen.meta_file = config["meta_file"]
+    Screen.meta_directory = config["meta_dir"]
 
 
 def show_message(msg):

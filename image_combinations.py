@@ -9,7 +9,7 @@ import random
 import json
 from hashlib import sha1
 
-from gui.repository import save_cloud_content
+from gui.repository import save_cloud_content, getMetaFrom
 
 
 class ImageCombinator:
@@ -82,7 +82,10 @@ class ImageCombinator:
                     self.selected_layers.append(member)
         self.fill_id_to_name()
 
-    def generateImages(self, combinations, image_template, meta_template, exp, maximum, updateMsg, meta={}):
+    def generateImages(self, combinations, path, image_template, exp, maximum, updateMsg, meta={}):
+        image_name = image_template
+        image_template = path + 'images/' + image_name
+        meta_template = path + 'metadata/' + image_name + "{}_meta"
         print("generateImages for: ", combinations)
         for i in range(len(combinations)):
             updateMsg("Generating .. {}%".format(round((i / len(combinations)) * 100, 1)))
@@ -163,51 +166,14 @@ class ImageCombinator:
                 "dna": sha1(str(metadata.copy()).encode()).hexdigest(),
                 "date": round(time.time() * 1000),
                 "edition": N,
-                "image": export_name, # TODO need to update image
+                "image": image_name + str(N),
                 "attributes": metadata,
             }
-            if meta.keys().__contains__("name"):
-                print("There is Name")
-                metadata["name"] = meta["name"] + " #" + str(N)
-            else:
-                print("There is not Name")
 
-            if meta.keys().__contains__("collection/name"):
-                if not metadata.keys().__contains__("collection"):
-                    metadata["collection"] = {}
-                metadata["collection"]["name"] = meta["collection/name"]
+            prepared_meta = getMetaFrom(meta, N=N, image_name=image_name + str(N), exp=exp)
+            metadata = metadata | prepared_meta
 
-            if meta.keys().__contains__("collection/family"):
-                if not metadata.keys().__contains__("collection"):
-                    metadata["collection"] = {}
-                metadata["collection"]["family"] = meta["collection/family"]
-
-            if meta.keys().__contains__("properties/creators/address"):
-                if not metadata.keys().__contains__("properties"):
-                    metadata["properties"] = {}
-                if not metadata["properties"].keys().__contains__("creators"):
-                    metadata["properties"]["creators"] = {}
-                metadata["properties"]["creators"]["address"] = meta["properties/creators/address"]
-
-            if meta.keys().__contains__("properties/creators/share"):
-                if not metadata.keys().__contains__("properties"):
-                    metadata["properties"] = {}
-                if not metadata["properties"].keys().__contains__("creators"):
-                    metadata["properties"]["creators"] = {}
-                metadata["properties"]["creators"]["share"] = meta["properties/creators/share"]
-
-
-
-            for meta_e_k, meta_e_v in meta.items():
-                key_array = meta_e_k.split('/')
-                if len(key_array) == 1:
-                    metadata[key_array[0]] = meta_e_v
-                elif len(key_array) > 1:
-                    pass
-                    # TODO Need to paste complex path metadata fields]
-
-
-            self.save_meta(metadata, meta_template + str(N))
+            self.save_meta(metadata, meta_template.format(str(N)))
 
     def generateInvariants(self, image_template="export", meta_template="meta", exp="png", maximum=float("inf"), combinations = None, start=0, end=-1):
         # while(True):
