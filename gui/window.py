@@ -412,18 +412,15 @@ def calculate(args):
 
     combinator.setCombinable([i[0] for i in top])
 
-    combinations = combinator.getCombinations(Screen.count, update)
-    print("Result of calculating:", len(combinations[0]), combinations[1], combinations[2])
-
-    combinations = sorted(combinations[0], key=lambda _: random.random()), combinations[1], combinations[2]
-    file_name = combinator.save_cloud(combinations[0], configure={
+    combinations, file = combinator.getCombinations(Screen.count, update, config={
         "Source": Screen.source,
         "GenName": Screen.name
-    }, path=Screen.destiny)
+    }, save_file_path=Screen.destiny)
 
-    Screen.updateMessage("Calculating has been finished:\n"
-                         "You can find your cloud file\n{}\n"
-                         "in {}".format(os.path.basename(file_name), Screen.destiny))
+    if file is not None:
+        Screen.updateMessage("Calculating has been finished:\n"
+                             "You can find your cloud file\n{}\n"
+                             "in {}".format(os.path.basename(file), Screen.destiny))
     if len(combinations[0]) == 0:
         return None
 
@@ -462,7 +459,11 @@ def calculate_btn():
 
 def update_metadate():
     print("mEta", Screen.meta_file)
-    update_meta_file(Screen.meta_entities, Screen.meta_file, Screen.updateMessage)
+    if Screen.meta_target == "Dir" and Screen.meta_directory is not None:
+        for item in os.listdir(Screen.meta_directory):
+            update_meta_file(Screen.meta_entities, Screen.meta_directory + "/" + item, Screen.updateMessage)
+    elif Screen.meta_target == "File" and Screen.meta_file is not None:
+        update_meta_file(Screen.meta_entities, Screen.meta_file, Screen.updateMessage)
 
 
 def calc_or_gen_or_update_btn():
@@ -566,7 +567,7 @@ def generate(combinations, source, updateMsg):
 
     combinator = ImageCombinator(source)
     print(Screen.meta_entities)
-    combinator.generateImages(combinations=combinations, image_template=Screen.name + '#',
+    combinator.generateImages(combinations=combinations, image_template=Screen.name + '_n',
                                   path=path, exp="png",
                               maximum=len(combinations), meta=Screen.meta_entities, updateMsg=updateMsg)
     updateMsg("Generating has been finished:\n"

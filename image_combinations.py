@@ -9,7 +9,7 @@ import random
 import json
 from hashlib import sha1
 
-from gui.repository import save_cloud_content, getMetaFrom
+from gui.repository import save_cloud_content, getMetaFrom, save_directly
 
 
 class ImageCombinator:
@@ -82,7 +82,8 @@ class ImageCombinator:
                     self.selected_layers.append(member)
         self.fill_id_to_name()
 
-    def generateImages(self, combinations, path, image_template, exp, maximum, updateMsg, meta={}):
+    def generateImages(self, combinations, path, image_template, exp, maximum, updateMsg=print, meta={}, prepared_meta =None):
+        combinations = sorted(combinations, key=lambda _: random.random())
         image_name = image_template
         image_template = path + 'images/' + image_name
         meta_template = path + 'metadata/' + image_name + "{}_meta"
@@ -139,29 +140,6 @@ class ImageCombinator:
                 }
             )
 
-            # metadata = {
-            #     "dna": sha1(str(metadata.copy()).encode()).hexdigest(),
-            #     "date": round(time.time() * 1000),
-            #     "name": "Turbo Snail #" + str(N),
-            #     "description": "A project for collecting turbo shells based on a cartoon character. The snail can be of different power and speed. Collect all the engines in the collection. Each picture gives you the right to be in the turbo community and participate in speed races.",
-            #     "seller_fee_basis_points": 1000,#1000 - 10%
-            #     "external_url": "https://twitter.com/SnailsTurbo",#https - project site adress
-            #     "edition": N,
-            #     "collection": {
-            #         "name": "Turbo Snails",
-            #         "family": "Turbo Snails"
-            #     },
-            #     "image": export_name,
-            #     "attributes": metadata,
-            #     "properties": {
-            #         "creators": {
-            #             "address": "0xeA816fec681cF3Bc3D36e167B6CE41628162f788",  #cryptowallet
-            #             "share": 100
-            #         }
-            #     },
-            #     "compiler": "MCAL"
-            # }
-
             metadata = {
                 "dna": sha1(str(metadata.copy()).encode()).hexdigest(),
                 "date": round(time.time() * 1000),
@@ -169,9 +147,13 @@ class ImageCombinator:
                 "image": image_name + str(N),
                 "attributes": metadata,
             }
-
-            prepared_meta = getMetaFrom(meta, N=N, image_name=image_name + str(N), exp=exp)
-            metadata = metadata | prepared_meta
+            print("image:", metadata["image"])
+            if prepared_meta is None:
+                prepared_signed_meta = getMetaFrom(meta, N=N, image_name=image_name + str(N), exp=exp)
+            else:
+                prepared_signed_meta = prepared_meta.copy()
+                prepared_signed_meta["name"] = prepared_signed_meta["name"] + "_n" + str(N)
+            metadata = metadata | prepared_signed_meta
 
             self.save_meta(metadata, meta_template.format(str(N)))
 
@@ -188,16 +170,16 @@ class ImageCombinator:
         #         combinations = combinations_with_report[0]
         #         break
 
-        if combinations is None:
-            combinations = self.getCombinations(int(maximum))
+        # if combinations is None:
+        #     combinations = self.getCombinations(int(maximum))
+        #
+        #     self.save_cloud(combinations[0])
+        #
+        #
+        # self.generateImages(combinations,image_template, meta_template, exp, maximum, start, end)
+        pass
 
-            combinations = sorted(combinations[0], key=lambda _: random.random()), combinations[1], combinations[2]
-            self.save_cloud(combinations[0])
-
-
-        self.generateImages(combinations,image_template, meta_template, exp, maximum, start, end)
-
-    def getCombinations(self, limit: int, updateProgressMsg):
+    def getCombinations(self, limit: int, updateProgressMsg, save_file_path=None, config=None):
         selected_groups = self.selected_groups
         selected_layers = self.selected_layers
 
@@ -232,11 +214,13 @@ class ImageCombinator:
             }
 
         saved = MultyDimCounter([(0, 10000)], False)
+        result = None
 
-        while step < count_variations:
+        while step < count_variations and result is None:
             for i in range(len(selected_groups)):
                 if len(combinations) >= limit:
-                    return combinations, 0, found_combinations / count_variations
+                    result = combinations, 0, found_combinations / count_variations
+                    break
 
                 combination = []
                 combination_shine = 0
@@ -298,18 +282,28 @@ class ImageCombinator:
 
                 step += 1
 
-        print("Combinations generated: ", len(combinations))
-        print("Lost combinations", len(lost_combinations))
-        difference = min(limit - len(combinations), len(lost_combinations))
-        print("Will be restored -- ", difference)
+        if result is None:
+            print("Combinations generated: ", len(combinations))
+            print("Lost combinations", len(lost_combinations))
+            difference = min(limit - len(combinations), len(lost_combinations))
+            print("Will be restored -- ", difference)
 
-        if difference > 0:
-            lost_combinations = sorted(lost_combinations, key=lambda _: random.random())
-            for combin_n in range(0, difference):
-                combinations.append(lost_combinations.pop(0))
+            if difference > 0:
+                step = len(lost_combinations) // difference
+                for c in range(0, len(lost_combinations), step):
+                    if len(combinations) < limit:
+                        combinations.append(lost_combinations[c])
 
-        print("Found combinations:", len(combinations))
-        return combinations, difference / limit, 1
+            print("Found combinations:", len(combinations), combinations)
+            result = combinations, difference / limit, 1
+
+        # result = sorted(result[0], key=lambda _: random.random()), result[1], result[2]
+        file = None
+        if config is not None and save_file_path is not None:
+            print("Save -- ")
+            file = self.save_cloud(result[0], configure=config, path=save_file_path)
+
+        return result, file
 
     def save_cloud(self, combinations, configure, path):
         return save_cloud_content(path, self.prepare_cloud(combinations, configure), self.show_message)

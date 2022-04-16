@@ -54,6 +54,16 @@ def save_cloud_content(path, content, error_handling):
     return file_name
 
 
+def save_directly(path, content, error_hling):
+    if not os.path.exists(path): os.makedirs(path)
+    try:
+        with open(path, 'w') as file:
+            json_string = json.dumps(content)
+            file.write(json_string)
+    except Exception:
+        error_hling("Something went wrong \nwhile cloud saving")
+
+
 def get_project_file_name(content):
     src_file_name = '_'.join(os.path.basename(content["Source"]).split('.')[:-1])
     return "{}_From_{}_For_{}".format(content["Generation"],
@@ -108,9 +118,10 @@ def update_meta_dir(meta, dir_path, error_handling):
 
 
 def getMetaFrom(meta: dict, N, image_name, exp):
+    print("getMetaFrom:")
     metadata = {}
     if meta.keys().__contains__("name"):
-        metadata["name"] = meta["name"] + " #" + str(N)
+        metadata["name"] = meta["name"] + " _n" + str(N)
 
     if meta.keys().__contains__("ipfs(image)"):
         if exp is None:
@@ -118,6 +129,7 @@ def getMetaFrom(meta: dict, N, image_name, exp):
         else:
             name = image_name + "." + exp
         metadata["image"] = meta["ipfs(image)"] + "/" + name
+    print("++image:", metadata["image"])
 
     if meta.keys().__contains__("collection/name"):
         if not metadata.keys().__contains__("collection"):
