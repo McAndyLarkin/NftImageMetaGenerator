@@ -1,0 +1,31 @@
+{
+  "mode": "gen",
+  "cloud": "/Users/maksim/Pictures/result/TurboSnails_From_Final_Snale_to_Generation_with_var_items_For_1000.ccld",
+  "source": "/Users/maksim/Pictures/Final_Snale_to_Generation_with_var_items.psd",
+  "destiny": "/Users/maksim/Pictures/result/by_console/",
+  "name": "TurboSnails",
+  "count": 1000,
+  "meta": {
+    "name": "Turbo Snail",
+    "description": "A project for collecting turbo shells based on a cartoon character. The snail can be of different power and speed. Collect all the engines in the collection. Each picture gives you the right to be in the turbo community and participate in speed races.",
+    "seller_fee_basis_points": 1000,
+    "external_url": "https://twitter.com/SnailsTurbo",
+    "collection": {
+      "name": "Turbo Snails",
+      "family": "Turbo Snails"
+    },
+    "properties": {
+      "creators": [
+        {
+          "address": "58rtsvCKZTnDfELeWDyY8CDvXBw2njFEKbk167d6x9Uo",
+          "share": 93
+        },
+        {
+          "address": "95cFcuw6XgQLPs3VCxt3CbG4of5zvAvVCP75GVJCmYAf",
+          "share": 7
+        }
+      ]
+    },
+    "compiler": "MCAL"
+  }
+}
